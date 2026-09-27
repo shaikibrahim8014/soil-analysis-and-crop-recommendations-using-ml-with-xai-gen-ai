@@ -1,0 +1,1 @@
+Replace soil_crop_dataset.csv with your real dataset. Required columns: N,P,K,temperature,humidity,ph,rainfall,label
