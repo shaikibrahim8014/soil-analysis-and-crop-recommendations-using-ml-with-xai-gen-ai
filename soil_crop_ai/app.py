@@ -1,10 +1,11 @@
-import streamlit as st
-from pathlib import Path
-import sys
+import html
 import json
+import sys
+from pathlib import Path
+
 import pandas as pd
 import plotly.express as px
-import textwrap
+import streamlit as st
 
 # ============================================================
 # PROJECT ROOT
@@ -15,909 +16,442 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-
 # ============================================================
 # PROJECT IMPORTS
 # ============================================================
 
 from src.prediction import predict_top3, model_available
 from src.soil_health import analyze_soil
-from src.explainability import explain_prediction, global_feature_importance
-from src.database import initialize_database, save_prediction, get_prediction_history
-from src.data_loader import load_dataset, validate_dataset_columns
+from src.explainability import (
+    explain_prediction,
+    global_feature_importance,
+)
+from src.database import (
+    initialize_database,
+    save_prediction,
+    get_prediction_history,
+)
 
-# Gemini Advisor
-from src.gemini_advisor import get_agriculture_advice
+# Gemini is optional. The rest of the app should still open
+# if Gemini dependencies or API configuration are unavailable.
+try:
+    from src.gemini_advisor import get_agriculture_advice
+
+    GEMINI_AVAILABLE = True
+    GEMINI_ERROR = None
+except Exception as exc:
+    get_agriculture_advice = None
+    GEMINI_AVAILABLE = False
+    GEMINI_ERROR = str(exc)
 
 # ============================================================
-# STREAMLIT CONFIG
+# STREAMLIT CONFIGURATION
 # ============================================================
 
 st.set_page_config(
-    page_title="Soil AI | Crop Recommendation",
+    page_title="Soil Crop AI",
     page_icon="🌱",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
-
-# ============================================================
-# DATABASE
-# ============================================================
-
 initialize_database()
 
-
 # ============================================================
-# PREMIUM PROFESSIONAL CSS
+# PREMIUM FOREST-GREEN CSS
 # ============================================================
 
 st.markdown(
     """
     <style>
-
- /* ============================================================
-   SOIL CROP AI
-   PROFESSIONAL AGRICULTURE + AI DASHBOARD THEME
-   ============================================================ */
-
-
-/* ============================================================
-   GLOBAL
-   ============================================================ */
-
-html,
-body,
-[class*="css"] {
-    font-family: "Segoe UI", Arial, sans-serif !important;
-}
-
-.stApp {
-    background: #f4f9f6 !important;
-    color: #17211b !important;
-}
-
-.block-container {
-    max-width: 1450px !important;
-    padding-top: 1.5rem !important;
-    padding-bottom: 4rem !important;
-    padding-left: 2.5rem !important;
-    padding-right: 2.5rem !important;
-}
-
-header[data-testid="stHeader"] {
-    background: transparent !important;
-}
-
-
-/* ============================================================
-   MAIN PAGE TITLE
-   ============================================================ */
-
-.main-title {
-    margin-top: 18px;
-    margin-bottom: 8px;
-
-    color: #14532d !important;
-
-    font-size: 2.45rem;
-    font-weight: 850;
-
-    letter-spacing: -1px;
-    line-height: 1.2;
-}
-
-.subtitle {
-    color: #64748b !important;
-
-    font-size: 1rem;
-    font-weight: 500;
-
-    line-height: 1.6;
-    margin-bottom: 25px;
-}
-
-
-/* ============================================================
-   PROJECT BRAND
-   ============================================================ */
-
-.project-title {
-    margin-top: 10px;
-    margin-bottom: 3px;
-
-    color: #14532d !important;
-
-    font-size: 2.25rem;
-    font-weight: 850;
-
-    letter-spacing: -1px;
-}
-
-.project-subtitle {
-    color: #64748b !important;
-
-    font-size: 0.95rem;
-    font-weight: 500;
-
-    margin-bottom: 18px;
-}
-
-
-/* ============================================================
-   HEADINGS
-   ============================================================ */
-
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-    color: #17211b !important;
-    font-weight: 800 !important;
-}
-
-h3 {
-    color: #166534 !important;
-}
-
-p,
-li {
-    color: #26332b !important;
-    line-height: 1.75;
-}
-
-[data-testid="stMarkdownContainer"] p {
-    color: #26332b !important;
-}
-
-
-/* ============================================================
-   TOP NAVIGATION
-   ============================================================ */
-
-div[data-testid="stRadio"] {
-    width: 100% !important;
-
-    margin-top: 5px !important;
-    margin-bottom: 20px !important;
-}
-
-div[data-testid="stRadio"] > div {
-    width: 100% !important;
-
-    display: flex !important;
-    flex-direction: row !important;
-
-    justify-content: center !important;
-    align-items: center !important;
-
-    flex-wrap: wrap !important;
-
-    gap: 5px !important;
-
-    padding: 7px !important;
-
-    background: #ffffff !important;
-
-    border: 1px solid #d8e8dd !important;
-
-    border-radius: 16px !important;
-
-    box-shadow:
-        0 8px 25px rgba(22, 101, 52, 0.07) !important;
-}
-
-div[data-testid="stRadio"] label {
-    margin: 0 !important;
-
-    padding: 11px 17px !important;
-
-    border-radius: 11px !important;
-
-    background: transparent !important;
-
-    color: #334155 !important;
-
-    font-size: 0.84rem !important;
-    font-weight: 650 !important;
-
-    white-space: nowrap !important;
-
-    cursor: pointer !important;
-
-    transition: all 0.2s ease !important;
-}
-
-div[data-testid="stRadio"] label:hover {
-    background: #ecfdf5 !important;
-    color: #15803d !important;
-}
-
-div[data-testid="stRadio"] label:has(input:checked) {
-    background: #166534 !important;
-
-    color: #ffffff !important;
-
-    box-shadow:
-        0 5px 16px rgba(22, 101, 52, 0.22) !important;
-}
-
-div[data-testid="stRadio"] label:has(input:checked) * {
-    color: #ffffff !important;
-}
-
-div[data-testid="stRadio"] label > div:first-child {
-    display: none !important;
-}
-
-
-/* ============================================================
-   METRIC CARDS
-   ============================================================ */
-
-[data-testid="stMetric"] {
-    min-height: 115px !important;
-
-    padding: 20px !important;
-
-    background: #ffffff !important;
-
-    border: 1px solid #dbe8df !important;
-
-    border-radius: 18px !important;
-
-    box-shadow:
-        0 8px 25px rgba(15, 23, 42, 0.055) !important;
-
-    transition: all 0.25s ease !important;
-}
-
-[data-testid="stMetric"]:hover {
-    transform: translateY(-3px);
-
-    box-shadow:
-        0 15px 35px rgba(22, 101, 52, 0.12) !important;
-}
-
-[data-testid="stMetricLabel"] {
-    color: #64748b !important;
-
-    font-size: 0.75rem !important;
-
-    font-weight: 700 !important;
-
-    text-transform: uppercase;
-
-    letter-spacing: 0.5px;
-}
-
-[data-testid="stMetricValue"] {
-    color: #166534 !important;
-
-    font-size: 1.55rem !important;
-
-    font-weight: 850 !important;
-}
-
-
-/* ============================================================
-   SOIL INPUT SECTION
-   ============================================================ */
-
-.stNumberInput {
-    background: #ffffff !important;
-
-    border-radius: 14px !important;
-}
-
-.stNumberInput input {
-    min-height: 45px !important;
-
-    background: #ffffff !important;
-
-    color: #17211b !important;
-
-    border: 1px solid #cfe1d5 !important;
-
-    border-radius: 11px !important;
-
-    font-size: 0.94rem !important;
-
-    font-weight: 500 !important;
-}
-
-.stNumberInput input:hover {
-    border-color: #4ade80 !important;
-}
-
-.stNumberInput input:focus {
-    border-color: #16a34a !important;
-
-    box-shadow:
-        0 0 0 3px rgba(22, 163, 74, 0.12) !important;
-}
-
-.stNumberInput label {
-    color: #1f2937 !important;
-
-    font-weight: 650 !important;
-}
-
-
-/* ============================================================
-   BUTTONS
-   ============================================================ */
-
-.stButton > button {
-    width: 100% !important;
-
-    min-height: 48px !important;
-
-    border: none !important;
-
-    border-radius: 12px !important;
-
-    background: #166534 !important;
-
-    color: #ffffff !important;
-
-    font-size: 0.94rem !important;
-
-    font-weight: 750 !important;
-
-    box-shadow:
-        0 7px 18px rgba(22, 101, 52, 0.20) !important;
-
-    transition: all 0.25s ease !important;
-}
-
-.stButton > button:hover {
-    background: #15803d !important;
-
-    transform: translateY(-2px) !important;
-
-    box-shadow:
-        0 12px 25px rgba(22, 101, 52, 0.25) !important;
-}
-
-.stButton > button * {
-    color: #ffffff !important;
-}
-
-
-/* ============================================================
-   HOME PAGE
-   ============================================================ */
-
-.home-page {
-    background: #edf8f1 !important;
-
-    padding: 30px;
-
-    margin: -20px -20px 0 -20px;
-
-    border-radius: 0 0 25px 25px;
-}
-
-
-/* ============================================================
-   PROJECT OVERVIEW
-   ============================================================ */
-
-.intro-card {
-    width: 100%;
-
-    box-sizing: border-box;
-
-    padding: 32px;
-
-    margin-top: 22px;
-
-    background: #ffffff !important;
-
-    color: #26332b !important;
-
-    border: 1px solid #d5e8db !important;
-
-    border-radius: 22px !important;
-
-    box-shadow:
-        0 10px 30px rgba(22, 101, 52, 0.08) !important;
-}
-
-.intro-card h2 {
-    margin-top: 0 !important;
-
-    margin-bottom: 16px !important;
-
-    color: #14532d !important;
-
-    font-size: 1.65rem !important;
-
-    font-weight: 850 !important;
-}
-
-.intro-card h3 {
-    margin-top: 24px !important;
-
-    margin-bottom: 10px !important;
-
-    color: #166534 !important;
-
-    font-size: 1.15rem !important;
-
-    font-weight: 750 !important;
-}
-
-.intro-card p {
-    margin-bottom: 15px !important;
-
-    color: #374151 !important;
-
-    font-size: 0.98rem !important;
-
-    line-height: 1.8 !important;
-}
-
-
-/* ============================================================
-   PROJECT WORKFLOW
-   ============================================================ */
-
-.workflow {
-    margin-top: 20px;
-
-    padding: 20px 25px;
-
-    background: linear-gradient(
-        135deg,
-        #14532d,
-        #166534
-    ) !important;
-
-    color: #ffffff !important;
-
-    border-radius: 16px;
-
-    text-align: center;
-
-    font-size: 0.92rem;
-
-    font-weight: 650;
-
-    line-height: 1.9;
-
-    box-shadow:
-        0 8px 22px rgba(22, 101, 52, 0.18);
-}
-
-.workflow * {
-    color: #ffffff !important;
-}
-
-
-/* ============================================================
-   SOIL HEALTH CARD
-   ============================================================ */
-
-.result-card {
-    padding: 24px 27px;
-
-    margin: 16px 0;
-
-    background: #ffffff !important;
-
-    border: 1px solid #d8e8dd !important;
-
-    border-left: 5px solid #16a34a !important;
-
-    border-radius: 16px;
-
-    box-shadow:
-        0 8px 25px rgba(15, 23, 42, 0.055);
-}
-
-.result-card p {
-    color: #26332b !important;
-}
-
-
-/* ============================================================
-   CROP RECOMMENDATION CARDS
-   ============================================================ */
-
-.crop-card {
-    padding: 25px;
-
-    text-align: center;
-
-    background: #ffffff !important;
-
-    border: 1px solid #d8e8dd !important;
-
-    border-radius: 18px;
-
-    box-shadow:
-        0 8px 25px rgba(15, 23, 42, 0.055);
-
-    transition: all 0.25s ease;
-}
-
-.crop-card:hover {
-    transform: translateY(-5px);
-
-    border-color: #86efac !important;
-
-    box-shadow:
-        0 15px 35px rgba(22, 101, 52, 0.12);
-}
-
-.crop-name {
-    color: #14532d !important;
-
-    font-size: 1.1rem;
-
-    font-weight: 850;
-}
-
-.crop-probability {
-    margin-top: 9px;
-
-    color: #16a34a !important;
-
-    font-size: 1.55rem;
-
-    font-weight: 850;
-}
-
-.small {
-    margin-top: 7px;
-
-    color: #64748b !important;
-
-    font-size: 0.78rem;
-}
-
-
-/* ============================================================
-   GEMINI AGRICULTURAL ADVISOR
-   ============================================================ */
-
-.ai-card {
-    padding: 28px;
-
-    margin-top: 16px;
-
-    background: #f0f9ff !important;
-
-    border: 1px solid #bae6fd !important;
-
-    border-left: 5px solid #0284c7 !important;
-
-    border-radius: 18px;
-
-    box-shadow:
-        0 8px 27px rgba(2, 132, 199, 0.08);
-}
-
-.ai-title {
-    color: #075985 !important;
-
-    font-size: 1.2rem;
-
-    font-weight: 850;
-
-    margin-bottom: 12px;
-}
-
-.ai-card p {
-    color: #1f2937 !important;
-
-    line-height: 1.8;
-}
-
-
-/* ============================================================
-   XAI FEATURE CARD
-   ============================================================ */
-
-.xai-table {
-    width: 100%;
-
-    border-collapse: separate;
-
-    border-spacing: 0;
-
-    background: #ffffff !important;
-
-    border: 1px solid #dbeafe;
-
-    border-radius: 15px;
-
-    overflow: hidden;
-
-    box-shadow:
-        0 8px 25px rgba(30, 64, 175, 0.06);
-
-    margin-top: 12px;
-
-    margin-bottom: 25px;
-}
-
-.xai-table th {
-    padding: 14px 15px;
-
-    background: #1e40af !important;
-
-    color: #ffffff !important;
-
-    font-size: 0.84rem;
-
-    font-weight: 750;
-
-    text-align: left;
-}
-
-.xai-table td {
-    padding: 13px 15px;
-
-    background: #ffffff !important;
-
-    color: #1f2937 !important;
-
-    font-size: 0.88rem;
-
-    border-bottom: 1px solid #e5e7eb;
-}
-
-.xai-table tr:nth-child(even) td {
-    background: #f8fbff !important;
-}
-
-.xai-table tbody tr:hover td {
-    background: #eff6ff !important;
-
-    color: #1e40af !important;
-}
-
-
-/* ============================================================
-   GENERAL TABLES
-   ============================================================ */
-
-.premium-table,
-.history-table {
-    width: 100%;
-
-    border-collapse: separate;
-
-    border-spacing: 0;
-
-    background: #ffffff !important;
-
-    border: 1px solid #d8e8dd;
-
-    border-radius: 15px;
-
-    overflow: hidden;
-
-    box-shadow:
-        0 8px 25px rgba(15, 23, 42, 0.055);
-
-    margin-top: 10px;
-
-    margin-bottom: 25px;
-}
-
-.premium-table th,
-.history-table th {
-    padding: 14px 15px;
-
-    background: #166534 !important;
-
-    color: #ffffff !important;
-
-    font-size: 0.84rem;
-
-    font-weight: 750;
-
-    text-align: left;
-}
-
-.premium-table td,
-.history-table td {
-    padding: 13px 15px;
-
-    background: #ffffff !important;
-
-    color: #1f2937 !important;
-
-    font-size: 0.88rem;
-
-    border-bottom: 1px solid #e5ebe7;
-}
-
-.premium-table tr:nth-child(even) td,
-.history-table tr:nth-child(even) td {
-    background: #f7fbf8 !important;
-}
-
-.premium-table tbody tr:hover td,
-.history-table tbody tr:hover td {
-    background: #ecfdf5 !important;
-
-    color: #166534 !important;
-}
-
-
-/* ============================================================
-   DATAFRAME
-   ============================================================ */
-
-[data-testid="stDataFrame"] {
-    background: #ffffff !important;
-
-    border: 1px solid #d8e8dd !important;
-
-    border-radius: 15px !important;
-
-    overflow: hidden !important;
-
-    box-shadow:
-        0 8px 25px rgba(15, 23, 42, 0.055) !important;
-
-    color-scheme: light !important;
-}
-
-
-/* ============================================================
-   MODEL PERFORMANCE / CONFUSION MATRIX
-   ============================================================ */
-
-.matrix-card {
-    padding: 18px;
-
-    background: #ffffff !important;
-
-    border: 1px solid #dbe8df;
-
-    border-radius: 18px;
-
-    box-shadow:
-        0 8px 27px rgba(15, 23, 42, 0.06);
-}
-
-[data-testid="stPlotlyChart"] {
-    background: #ffffff !important;
-
-    border-radius: 15px !important;
-}
-
-
-/* ============================================================
-   ALERTS
-   ============================================================ */
-
-[data-testid="stAlert"] {
-    border-radius: 13px !important;
-
-    border: 1px solid #d5e6dc !important;
-}
-
-[data-testid="stAlert"] p {
-    color: #1f2937 !important;
-}
-
-
-/* ============================================================
-   EXPANDER
-   ============================================================ */
-
-[data-testid="stExpander"] {
-    background: #ffffff !important;
-
-    border: 1px solid #d8e8dd !important;
-
-    border-radius: 14px !important;
-}
-
-
-/* ============================================================
-   DIVIDER
-   ============================================================ */
-
-hr {
-    border: none !important;
-
-    height: 1px !important;
-
-    background: #d8e8dd !important;
-
-    margin: 22px 0 !important;
-}
-
-
-/* ============================================================
-   CAPTION
-   ============================================================ */
-
-.stCaption {
-    color: #64748b !important;
-}
-
-
-/* ============================================================
-   REMOVE BLACK BACKGROUNDS
-   ============================================================ */
-
-.stCodeBlock,
-.stCodeBlock pre,
-pre,
-code {
-    background: #ffffff !important;
-
-    color: #14532d !important;
-
-    border-radius: 12px !important;
-}
-
-
-/* ============================================================
-   MOBILE RESPONSIVE
-   ============================================================ */
-
-@media (max-width: 900px) {
-
-    .block-container {
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
+    :root {
+        --forest: #153f2b;
+        --green: #1f6b45;
+        --leaf: #3b8b5b;
+        --mint: #eaf5ed;
+        --cream: #fbfaf6;
+        --text: #1d2c22;
+        --muted: #66766b;
+        --border: #dce8df;
+        --shadow: 0 12px 30px rgba(21, 63, 43, .075);
     }
 
-    .project-title {
-        font-size: 1.85rem;
+    html, body, [class*="css"] {
+        font-family: "Segoe UI", Arial, sans-serif !important;
+    }
+
+    .stApp {
+        background:
+            radial-gradient(
+                900px 420px at 0% 0%,
+                rgba(217, 240, 222, .62),
+                transparent 68%
+            ),
+            linear-gradient(180deg, #f8fbf8, var(--cream)) !important;
+        color: var(--text) !important;
+    }
+
+    .block-container {
+        max-width: 1360px !important;
+        padding: 1.6rem clamp(1rem, 3vw, 2.4rem) 3.5rem !important;
+    }
+
+    header[data-testid="stHeader"] {
+        background: transparent !important;
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+        color: var(--text) !important;
+        font-weight: 800 !important;
+        letter-spacing: -.025em !important;
     }
 
     .main-title {
-        font-size: 2rem;
+        margin: 15px 0 8px;
+        color: var(--forest) !important;
+        font-size: clamp(1.8rem, 3.4vw, 2.65rem);
+        font-weight: 850;
+        letter-spacing: -.045em;
+        line-height: 1.2;
+    }
+
+    .subtitle {
+        color: var(--muted) !important;
+        font-size: 1rem;
+        line-height: 1.7;
+        margin-bottom: 22px;
+    }
+
+    p, li {
+        color: #34463a;
+        line-height: 1.75;
+    }
+
+    /* Navigation */
+
+    div[data-testid="stRadio"] {
+        width: 100% !important;
+        margin: 8px 0 20px !important;
     }
 
     div[data-testid="stRadio"] > div {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        align-items: center !important;
         justify-content: flex-start !important;
-
-        flex-wrap: nowrap !important;
-
-        overflow-x: auto !important;
+        gap: 6px !important;
+        padding: 8px !important;
+        background: #ffffff !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 18px !important;
+        box-shadow: 0 7px 24px rgba(21, 63, 43, .055) !important;
     }
 
     div[data-testid="stRadio"] label {
-        padding: 9px 12px !important;
+        margin: 0 !important;
+        padding: 10px 14px !important;
+        border: 1px solid transparent !important;
+        border-radius: 12px !important;
+        color: #536458 !important;
+        font-size: .84rem !important;
+        font-weight: 700 !important;
+        white-space: nowrap !important;
+        transition: background .18s ease, color .18s ease;
+    }
 
-        font-size: 0.78rem !important;
+    div[data-testid="stRadio"] label:hover {
+        background: var(--mint) !important;
+        color: var(--green) !important;
+    }
+
+    div[data-testid="stRadio"] label:has(input:checked) {
+        background: linear-gradient(
+            135deg, var(--forest), var(--green)
+        ) !important;
+        color: #ffffff !important;
+        box-shadow: 0 5px 15px rgba(21, 63, 43, .2) !important;
+    }
+
+    div[data-testid="stRadio"] label:has(input:checked) * {
+        color: #ffffff !important;
+    }
+
+    div[data-testid="stRadio"] label > div:first-child {
+        display: none !important;
+    }
+
+    /* Metric cards */
+
+    [data-testid="stMetric"] {
+        min-height: 108px !important;
+        padding: 20px !important;
+        background: #ffffff !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 18px !important;
+        box-shadow: var(--shadow) !important;
+        transition: transform .2s ease, box-shadow .2s ease;
+    }
+
+    [data-testid="stMetric"]:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 17px 34px rgba(21, 63, 43, .11) !important;
+    }
+
+    [data-testid="stMetricLabel"] {
+        color: var(--muted) !important;
+        font-size: .75rem !important;
+        font-weight: 750 !important;
+        letter-spacing: .06em !important;
+        text-transform: uppercase !important;
+    }
+
+    [data-testid="stMetricValue"] {
+        color: var(--forest) !important;
+        font-weight: 850 !important;
+    }
+
+    /* Input fields */
+
+    .stNumberInput input,
+    .stTextInput input,
+    .stTextArea textarea,
+    [data-baseweb="select"] > div {
+        min-height: 44px !important;
+        border: 1px solid #d2e1d6 !important;
+        border-radius: 11px !important;
+        background: #ffffff !important;
+        color: var(--text) !important;
+    }
+
+    .stNumberInput label,
+    .stTextInput label,
+    .stSelectbox label {
+        color: #304638 !important;
+        font-weight: 680 !important;
+    }
+
+    /* Buttons */
+
+    .stButton > button,
+    .stDownloadButton > button {
+        width: 100% !important;
+        min-height: 46px !important;
+        border: 1px solid var(--green) !important;
+        border-radius: 12px !important;
+        color: #ffffff !important;
+        background: linear-gradient(
+            135deg, var(--forest), var(--green)
+        ) !important;
+        font-weight: 750 !important;
+        box-shadow: 0 7px 17px rgba(21, 63, 43, .16) !important;
+        transition: transform .18s ease, box-shadow .18s ease;
+    }
+
+    .stButton > button:hover,
+    .stDownloadButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 24px rgba(21, 63, 43, .22) !important;
+    }
+
+    .stButton > button *,
+    .stDownloadButton > button * {
+        color: #ffffff !important;
+    }
+
+    /* Dashboard cards */
+
+    .intro-card, .crop-card, .result-card, .ai-card {
+        box-sizing: border-box;
+        border-radius: 20px;
+        box-shadow: var(--shadow);
     }
 
     .intro-card {
-        padding: 20px !important;
+        padding: 28px;
+        margin: 12px 0 20px;
+        background: #ffffff;
+        border: 1px solid var(--border);
     }
 
     .intro-card h2 {
-        font-size: 1.35rem !important;
+        margin-top: 0;
+        color: var(--forest) !important;
     }
 
-    .intro-card h3 {
-        font-size: 1.05rem !important;
+    .crop-card {
+        min-height: 155px;
+        padding: 24px 16px;
+        text-align: center;
+        background: linear-gradient(180deg, #ffffff, #f5faf6);
+        border: 1px solid var(--border);
+        transition: transform .2s ease, box-shadow .2s ease;
     }
 
-}
+    .crop-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 18px 35px rgba(21, 63, 43, .12);
+    }
+
+    .feature-icon {
+        font-size: 36px;
+        margin-bottom: 12px;
+    }
+
+    .crop-name {
+        color: var(--forest) !important;
+        font-size: 1rem;
+        font-weight: 850;
+        overflow-wrap: anywhere;
+    }
+
+    .crop-probability {
+        color: var(--green) !important;
+        font-size: 1.5rem;
+        font-weight: 850;
+    }
+
+    .small {
+        color: var(--muted) !important;
+        font-size: .82rem;
+        margin-top: 7px;
+    }
+
+    .result-card {
+        padding: 22px 26px;
+        margin: 16px 0;
+        background: #ffffff;
+        border: 1px solid var(--border);
+        border-left: 4px solid var(--leaf);
+    }
+
+    .ai-card {
+        padding: 25px;
+        margin: 16px 0;
+        background: #f0f8f2;
+        border: 1px solid #cfe3d5;
+        border-left: 4px solid var(--leaf);
+    }
+
+    .ai-title {
+        color: var(--forest) !important;
+        font-size: 1.15rem;
+        font-weight: 850;
+        margin-bottom: 10px;
+    }
+
+    /* Tables and charts */
+
+    .xai-table, .premium-table, .history-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 15px;
+        background: #ffffff;
+        box-shadow: 0 6px 20px rgba(21, 63, 43, .045);
+        margin: 12px 0 24px;
+    }
+
+    .xai-table th, .premium-table th, .history-table th {
+        padding: 13px 15px;
+        text-align: left;
+        color: #ffffff !important;
+        background: var(--forest) !important;
+        font-size: .84rem;
+        font-weight: 750;
+    }
+
+    .xai-table td, .premium-table td, .history-table td {
+        padding: 12px 15px;
+        color: #2b3b30 !important;
+        background: #ffffff !important;
+        border-bottom: 1px solid #e8eee9;
+        font-size: .88rem;
+    }
+
+    .xai-table tr:nth-child(even) td,
+    .premium-table tr:nth-child(even) td,
+    .history-table tr:nth-child(even) td {
+        background: #f5faf6 !important;
+    }
+
+    [data-testid="stDataFrame"],
+    [data-testid="stPlotlyChart"],
+    [data-testid="stExpander"] {
+        overflow: hidden !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 16px !important;
+        background: #ffffff !important;
+        box-shadow: 0 6px 22px rgba(21, 63, 43, .045) !important;
+    }
+
+    [data-testid="stAlert"] {
+        border-radius: 14px !important;
+    }
+
+    hr {
+        border: none !important;
+        height: 1px !important;
+        background: linear-gradient(
+            90deg, transparent, #d6e5da 12%,
+            #d6e5da 88%, transparent
+        ) !important;
+        margin: 22px 0 !important;
+    }
+
+    @media (max-width: 900px) {
+        .block-container {
+            padding: 1rem .9rem 2.5rem !important;
+        }
+
+        div[data-testid="stRadio"] > div {
+            flex-wrap: nowrap !important;
+            justify-content: flex-start !important;
+            overflow-x: auto !important;
+        }
+
+        div[data-testid="stRadio"] label {
+            padding: 9px 12px !important;
+            font-size: .78rem !important;
+        }
+
+        .intro-card {
+            padding: 20px;
+        }
+    }
+
+    @media (max-width: 560px) {
+        .main-title {
+            font-size: 1.75rem;
+        }
+
+        .subtitle {
+            font-size: .92rem;
+        }
+
+        [data-testid="stMetric"] {
+            padding: 16px !important;
+        }
+
+        .crop-card {
+            padding: 18px 12px;
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+            animation-duration: .01ms !important;
+            transition-duration: .01ms !important;
+        }
+    }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-
 # ============================================================
-# TOP NAVIGATION
+# NAVIGATION
 # ============================================================
 
 page = st.radio(
@@ -935,51 +469,67 @@ page = st.radio(
     label_visibility="collapsed",
 )
 
-
-# ============================================================
-# NAVIGATION DIVIDER
-# ============================================================
-
 st.markdown("<hr>", unsafe_allow_html=True)
 
+# ============================================================
+# REUSABLE PAGE TITLE
+# ============================================================
+
+
+def page_header(title, subtitle):
+    st.markdown(
+        f"""
+        <div class="main-title">{html.escape(title)}</div>
+        <div class="subtitle">{html.escape(subtitle)}</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 
 # ============================================================
-# INPUT FORM
+# SOIL INPUT FORM
 # ============================================================
 
 
 def input_form():
-
     st.subheader("🌱 Soil Parameters")
 
     c1, c2, c3, c4 = st.columns(4)
 
     with c1:
-        n = st.number_input("Nitrogen (kg/ha)", min_value=0.0, value=50.0)
+        n = st.number_input("Nitrogen (N)", min_value=0.0, value=50.0, key="input_n")
 
     with c2:
-        p = st.number_input("Phosphorus (kg/ha)", min_value=0.0, value=50.0)
+        p = st.number_input("Phosphorus (P)", min_value=0.0, value=50.0, key="input_p")
 
     with c3:
-        k = st.number_input("Potassium (kg/ha)", min_value=0.0, value=50.0)
+        k = st.number_input("Potassium (K)", min_value=0.0, value=50.0, key="input_k")
 
     with c4:
-        ph = st.number_input("Soil pH", min_value=0.0, max_value=14.0, value=6.5)
+        ph = st.number_input(
+            "Soil pH", min_value=0.0, max_value=14.0, value=6.5, key="input_ph"
+        )
 
     st.subheader("🌤️ Environmental Parameters")
 
     c1, c2, c3 = st.columns(3)
 
     with c1:
-        temperature = st.number_input("Temperature (°C)", value=25.0)
+        temperature = st.number_input("Temperature (°C)", value=25.0, key="input_temp")
 
     with c2:
         humidity = st.number_input(
-            "Humidity (%)", min_value=0.0, max_value=100.0, value=70.0
+            "Humidity (%)",
+            min_value=0.0,
+            max_value=100.0,
+            value=70.0,
+            key="input_humidity",
         )
 
     with c3:
-        rainfall = st.number_input("Rainfall (mm)", min_value=0.0, value=100.0)
+        rainfall = st.number_input(
+            "Rainfall (mm)", min_value=0.0, value=100.0, key="input_rainfall"
+        )
 
     return {
         "N": n,
@@ -993,136 +543,286 @@ def input_form():
 
 
 # ============================================================
-# HOME
+# HOME PAGE — SHORT DASHBOARD
 # ============================================================
 
 if page == "Home":
 
-    st.markdown(
-        """
-        <div class="main-title">
-            🌱 AI-Based Soil Analysis & Intelligent Crop Recommendation
-        </div>
-
-        <div class="subtitle">
-            Machine Learning + Explainable AI + Gemini AI
-            for Data-Driven Agriculture
-        </div>
-        """,
-        unsafe_allow_html=True,
+    page_header(
+        "🌱 Soil Crop AI",
+        "Intelligent Soil Analysis & Crop Recommendation",
     )
-
-    # --------------------------------------------------------
-    # METRICS
-    # --------------------------------------------------------
-
-    c1, c2, c3 = st.columns(3)
-
-    c1.metric("Machine Learning", "Classification")
-
-    c2.metric("Explainable AI", "SHAP")
-
-    c3.metric("AI Advisor", "Gemini")
-
-    # --------------------------------------------------------
-    # INTRODUCTION
-    # --------------------------------------------------------
 
     st.markdown(
         """
         <div class="intro-card">
-
-            <h2>🌱 Project Overview</h2>
-
+            <h2>Welcome to Soil Crop AI 🌿</h2>
             <p>
-                This application accepts soil and environmental conditions,
-                predicts suitable crops, ranks the Top-3 model
-                recommendations, explains the prediction using SHAP,
-                analyzes soil health, and provides agricultural guidance
-                using Gemini AI.
+                Smart agriculture powered by Machine Learning,
+                Explainable AI and Generative AI.
             </p>
-
-            <h3>🔄 Core Workflow</h3>
-
-            <div class="workflow">
-                User Input → Validation → ML Prediction →
-                Top-3 Ranking → SHAP Explanation →
-                Soil Health → Gemini Agricultural Advice →
-                SQLite History
-            </div>
-
-            <h3>🎯 Project Objective</h3>
-
-            <p>
-                The main objective of this project is to provide an
-                intelligent decision-support platform that combines
-                Machine Learning, Explainable AI and Generative AI
-                to support data-driven agricultural decisions.
-            </p>
-
-            <h3>⚠️ Important</h3>
-
-            <p>
-                Model probabilities are model-estimated probabilities
-                or confidence values, not guarantees of farming success.
-                Actual agricultural decisions should consider laboratory
-                soil tests, local climate, agronomist guidance and
-                crop-specific requirements.
-            </p>
-
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown(
+            """
+            <div class="crop-card">
+                <div class="feature-icon">🔬</div>
+                <div class="crop-name">Soil Analysis</div>
+                <div class="small">
+                    Analyze soil nutrients and health.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    with col2:
+        st.markdown(
+            """
+            <div class="crop-card">
+                <div class="feature-icon">🌾</div>
+                <div class="crop-name">Crop Recommendation</div>
+                <div class="small">
+                    Discover suitable crops using ML.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    with col3:
+        st.markdown(
+            """
+            <div class="crop-card">
+                <div class="feature-icon">🤖</div>
+                <div class="crop-name">AI Agriculture Advisor</div>
+                <div class="small">
+                    Get agricultural guidance.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    st.write("")
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Technology", "Machine Learning")
+    col2.metric("Explainability", "SHAP / XAI")
+    col3.metric("AI Assistant", "Gemini AI")
 
 
 # ============================================================
 # SOIL ANALYSIS
 # ============================================================
 
-elif page == "Soil Analysis":
+# ============================================================
+# SOIL ANALYSIS
+# ============================================================
 
-    st.markdown(
-        """
-        <div class="main-title">
-            🔬 Soil Analysis
-        </div>
+if page == "Soil Analysis":
 
-        <div class="subtitle">
-            Analyze soil health using nutrient and environmental parameters.
-        </div>
-        """,
-        unsafe_allow_html=True,
+    page_header(
+        "🌱 Soil Analysis",
+        "Check soil health, nutrient balance, and environmental conditions.",
     )
 
-    values = input_form()
+    st.markdown("### Enter Soil Parameters")
 
-    if st.button("🔍 Analyze Soil", type="primary"):
+    col1, col2 = st.columns(2)
 
+    with col1:
+        nitrogen = st.number_input(
+            "Nitrogen (N)",
+            min_value=0.0,
+            value=50.0,
+            step=1.0,
+            key="health_n",
+        )
+
+        phosphorus = st.number_input(
+            "Phosphorus (P)",
+            min_value=0.0,
+            value=40.0,
+            step=1.0,
+            key="health_p",
+        )
+
+        potassium = st.number_input(
+            "Potassium (K)",
+            min_value=0.0,
+            value=40.0,
+            step=1.0,
+            key="health_k",
+        )
+
+        soil_ph = st.number_input(
+            "Soil pH",
+            min_value=0.0,
+            max_value=14.0,
+            value=6.5,
+            step=0.1,
+            key="health_ph",
+        )
+
+    with col2:
+        temperature = st.number_input(
+            "Temperature (°C)",
+            min_value=-10.0,
+            max_value=60.0,
+            value=25.0,
+            step=0.5,
+            key="health_temp",
+        )
+
+        humidity = st.number_input(
+            "Humidity (%)",
+            min_value=0.0,
+            max_value=100.0,
+            value=70.0,
+            step=1.0,
+            key="health_humidity",
+        )
+
+        rainfall = st.number_input(
+            "Rainfall (mm)",
+            min_value=0.0,
+            value=100.0,
+            step=1.0,
+            key="health_rainfall",
+        )
+
+    st.caption(
+        "Enter measured soil values when available. "
+        "The score is an indicator, not a laboratory test."
+    )
+
+    if st.button(
+        "🔬 Analyze Soil",
+        type="primary",
+        key="run_soil_health",
+    ):
         try:
+            # Run the soil-health function only once per click.
+            health = analyze_soil(
+                N=nitrogen,
+                P=phosphorus,
+                K=potassium,
+                temperature=temperature,
+                humidity=humidity,
+                ph=soil_ph,
+                rainfall=rainfall,
+            )
 
-            result = analyze_soil(**values)
+            if not isinstance(health, dict):
+                st.error(
+                    "The soil analysis function did not return "
+                    "the expected result dictionary."
+                )
+            elif "score" not in health:
+                st.error(
+                    "The soil analysis result has no 'score' field. "
+                    "Check src/soil_health.py."
+                )
+            else:
+                score = max(0.0, min(100.0, float(health["score"])))
 
-            st.subheader("🌱 Soil Health Summary")
+                # Overall health status
+                if score >= 80:
+                    status = "Excellent"
+                    st.success("🌿 Soil Health Status: Excellent")
+                elif score >= 65:
+                    status = "Good"
+                    st.success("✅ Soil Health Status: Good")
+                elif score >= 50:
+                    status = "Moderate"
+                    st.warning("⚠️ Soil Health Status: Moderate")
+                else:
+                    status = "Needs Improvement"
+                    st.error("🛠️ Soil Health Status: Needs Improvement")
 
-            cols = st.columns(4)
+                st.markdown("---")
+                st.subheader("📊 Soil Health Results")
 
-            for col, key in zip(cols, ["N", "P", "K", "ph"]):
+                # One clear score and status
+                score_col, status_col = st.columns(2)
 
-                col.metric(key, result["status"][key])
+                with score_col:
+                    st.metric(
+                        "Soil Health Score",
+                        f"{score:.1f}/100",
+                    )
 
-            st.metric("Soil Health Score", f'{result["score"]:.1f}/100')
+                with status_col:
+                    st.metric(
+                        "Overall Status",
+                        status,
+                    )
 
-            st.info(result["disclaimer"])
+                st.progress(int(round(score)))
 
-        except ValueError as e:
+                # Display the input values once
+                st.subheader("🧪 Soil Parameter Summary")
 
-            st.error(str(e))
+                parameter_data = {
+                    "Parameter": [
+                        "Nitrogen (N)",
+                        "Phosphorus (P)",
+                        "Potassium (K)",
+                        "Soil pH",
+                        "Temperature",
+                        "Humidity",
+                        "Rainfall",
+                    ],
+                    "Measured Value": [
+                        f"{nitrogen:.1f}",
+                        f"{phosphorus:.1f}",
+                        f"{potassium:.1f}",
+                        f"{soil_ph:.1f}",
+                        f"{temperature:.1f} °C",
+                        f"{humidity:.1f}%",
+                        f"{rainfall:.1f} mm",
+                    ],
+                }
 
-        except Exception as e:
+                st.dataframe(
+                    pd.DataFrame(parameter_data),
+                    use_container_width=True,
+                    hide_index=True,
+                )
 
-            st.error(f"Soil analysis failed: {e}")
+                # Show additional details returned by the function.
+                # Avoid displaying the score a second time.
+                details = {
+                    key: value for key, value in health.items() if key != "score"
+                }
 
+                if details:
+                    st.subheader("📝 Analysis Details")
+
+                    for key, value in details.items():
+                        label = str(key).replace("_", " ").title()
+                        st.write(f"**{label}:** {value}")
+
+                st.caption(
+                    "Status thresholds are display categories for "
+                    "the returned score. They are not universal "
+                    "agricultural soil-quality standards."
+                )
+
+        except Exception as exc:
+            st.error(f"Soil analysis failed: {exc}")
+
+
+# ============================================================
+# CROP RECOMMENDATION
+# ============================================================
 
 # ============================================================
 # CROP RECOMMENDATION
@@ -1130,243 +830,237 @@ elif page == "Soil Analysis":
 
 elif page == "Crop Recommendation":
 
-    st.markdown(
-        """
-        <div class="main-title">
-            🌾 Crop Recommendation
-        </div>
-
-        <div class="subtitle">
-            Predict and rank the most suitable crops using Machine Learning.
-        </div>
-        """,
-        unsafe_allow_html=True,
+    page_header(
+        "🌾 Crop Recommendation",
+        "Discover suitable crops using soil and environmental data.",
     )
 
     if not model_available():
+        st.error(
+            "Trained model not found. Train the model using "
+            "`python -m src.train_model`."
+        )
 
-        st.error("Trained model not found. Run: python src/train_model.py")
+    else:
+        values = input_form()
 
-    values = input_form()
+        if st.button("🌾 Recommend Crops", type="primary"):
 
-    if st.button("🌾 Recommend Crops", type="primary"):
+            try:
+                # ------------------------------------------------
+                # 1. Predict the top 3 crops
+                # ------------------------------------------------
+                result = predict_top3(**values)
+                predicted_crop = result["predicted_crop"]
+                top3 = result.get("top3", [])
 
-        try:
+                st.success(f"🌱 Best Recommended Crop: {predicted_crop}")
 
-            result = predict_top3(**values)
+                # ------------------------------------------------
+                # 2. Display top 3 crops in separate cards
+                # ------------------------------------------------
+                st.subheader("🏆 Top 3 Recommended Crops")
 
-            predicted_crop = result["predicted_crop"]
+                if not top3:
+                    st.warning("No crop recommendations were returned.")
 
-            st.success(f"🌱 Predicted Crop: {predicted_crop}")
+                else:
+                    cols = st.columns(3, gap="medium")
+                    medals = ["🥇", "🥈", "🥉"]
 
-            # ------------------------------------------------
-            # TOP 3
-            # ------------------------------------------------
+                    for index, (col, item) in enumerate(zip(cols, top3[:3])):
+                        crop_name = html.escape(str(item["crop"]))
 
-            st.subheader("🏆 Top 3 Recommended Crops")
+                        # Convert probability to a percentage safely.
+                        probability = float(item["probability"])
 
-            cols = st.columns(3)
+                        if probability > 1:
+                            probability = probability / 100
 
-            medals = ["🥇", "🥈", "🥉"]
+                        probability = max(0.0, min(1.0, probability))
 
-            for col, medal, item in zip(cols, medals, result["top3"]):
+                        with col:
+                            with st.container(border=True):
+                                st.markdown(
+                                    f"""
+                                    <div style="
+                                        text-align: center;
+                                        padding: 12px 5px 8px 5px;
+                                    ">
+                                        <div style="font-size: 36px;">
+                                            {medals[index]}
+                                        </div>
+                                        <div style="
+                                            font-size: 19px;
+                                            font-weight: 800;
+                                            color: #153f2b;
+                                            margin: 12px 0;
+                                            overflow-wrap: anywhere;
+                                        ">
+                                            {crop_name}
+                                        </div>
+                                        <div style="
+                                            font-size: 28px;
+                                            font-weight: 850;
+                                            color: #1f6b45;
+                                        ">
+                                            {probability:.1%}
+                                        </div>
+                                        <div style="
+                                            font-size: 12px;
+                                            color: #66766b;
+                                            margin-top: 5px;
+                                        ">
+                                            Estimated probability
+                                        </div>
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True,
+                                )
 
-                with col:
+                                st.progress(probability)
+
+                st.caption(
+                    "Probabilities are model estimates, not guarantees "
+                    "of crop yield or farming success."
+                )
+
+                # ------------------------------------------------
+                # 3. Soil health score
+                # ------------------------------------------------
+                st.markdown("---")
+                st.subheader("🌱 Soil Health Assessment")
+
+                health = analyze_soil(**values)
+
+                if isinstance(health, dict) and "score" in health:
+                    score = max(
+                        0.0,
+                        min(100.0, float(health["score"])),
+                    )
+
+                    if score >= 80:
+                        health_status = "Excellent"
+                    elif score >= 65:
+                        health_status = "Good"
+                    elif score >= 50:
+                        health_status = "Moderate"
+                    else:
+                        health_status = "Needs Improvement"
+
+                    health_col1, health_col2 = st.columns(2)
+
+                    with health_col1:
+                        st.metric("Soil Health Score", f"{score:.1f}/100")
+
+                    with health_col2:
+                        st.metric("Soil Health Status", health_status)
+
+                    st.progress(int(round(score)))
+
+                    # Show other details without repeating the score.
+                    for key, value in health.items():
+                        if key != "score":
+                            label = str(key).replace("_", " ").title()
+                            st.write(f"**{label}:** {value}")
+
+                else:
+                    st.info(
+                        "Crop recommendation succeeded, but the soil "
+                        "health score was unavailable."
+                    )
+
+                # ------------------------------------------------
+                # 4. Explainable AI
+                # ------------------------------------------------
+                st.markdown("---")
+                st.subheader("🧠 Why Was This Crop Recommended?")
+
+                try:
+                    explanation = explain_prediction(values)
 
                     st.markdown(
                         f"""
-                        <div class="crop-card">
-
-                            <div class="crop-name">
-                                {medal} {item["crop"]}
-                            </div>
-
-                            <div class="crop-probability">
-                                {item["probability"]:.2%}
-                            </div>
-
-                            <div class="small">
-                                Model-estimated probability
-                            </div>
-
+                        <div class="result-card">
+                            <p>
+                                {html.escape(
+                                    str(explanation["plain_english"])
+                                )}
+                            </p>
                         </div>
                         """,
                         unsafe_allow_html=True,
                     )
 
-            st.caption(
-                "These are model-estimated probabilities, "
-                "not crop-success probabilities."
-            )
+                except Exception as exc:
+                    st.warning(f"Could not generate the explanation: {exc}")
+                    explanation = None
 
-            # ------------------------------------------------
-            # SOIL HEALTH
-            # ------------------------------------------------
+                # ------------------------------------------------
+                # 5. Gemini agricultural advice
+                # ------------------------------------------------
+                st.markdown("---")
+                st.subheader("🤖 AI Agricultural Advisor")
 
-            health = analyze_soil(**values)
+                if not GEMINI_AVAILABLE:
+                    st.warning(
+                        "Gemini advisor is unavailable. Check your "
+                        "dependencies and API key configuration."
+                    )
 
-            st.subheader("🌱 Soil Health")
+                    if GEMINI_ERROR:
+                        st.caption(GEMINI_ERROR)
 
-            st.metric("Score", f'{health["score"]:.1f}/100')
+                else:
+                    soil_data = {
+                        "Nitrogen (N)": values["N"],
+                        "Phosphorus (P)": values["P"],
+                        "Potassium (K)": values["K"],
+                        "Soil pH": values["ph"],
+                        "Temperature (°C)": values["temperature"],
+                        "Humidity (%)": values["humidity"],
+                        "Rainfall (mm)": values["rainfall"],
+                    }
 
-            # ------------------------------------------------
-            # XAI
-            # ------------------------------------------------
+                    try:
+                        with st.spinner("Generating agricultural advice..."):
+                            advice = get_agriculture_advice(
+                                soil_data=soil_data,
+                                predicted_crop=predicted_crop,
+                                explanation=(
+                                    explanation["plain_english"]
+                                    if explanation
+                                    else "No explanation available."
+                                ),
+                            )
 
-            explanation = explain_prediction(values)
+                        st.markdown(
+                            f"""
+                            <div class="ai-card">
+                                <div class="ai-title">
+                                    🌾 Agricultural Advice
+                                </div>
+                                <p>{html.escape(str(advice))}</p>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
 
-            st.subheader("🧠 Why did the model recommend this crop?")
+                    except Exception as exc:
+                        st.warning(f"Gemini advice failed: {exc}")
 
-            st.markdown(
-                f"""
-                <div class="result-card">
+                # ------------------------------------------------
+                # 6. Save prediction history
+                # ------------------------------------------------
+                try:
+                    save_prediction(values, predicted_crop, top3)
+                    st.success("✅ Prediction saved to history.")
 
-                    <p>
-                        {explanation["plain_english"]}
-                    </p>
+                except Exception as exc:
+                    st.warning(f"Could not save prediction history: {exc}")
 
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-            # ------------------------------------------------
-            # GEMINI
-            # ------------------------------------------------
-
-            st.subheader("🤖 Gemini Agricultural Advisor")
-
-            soil_data = {
-                "Nitrogen (N)": values["N"],
-                "Phosphorus (P)": values["P"],
-                "Potassium (K)": values["K"],
-                "Soil pH": values["ph"],
-                "Temperature (°C)": values["temperature"],
-                "Humidity (%)": values["humidity"],
-                "Rainfall (mm)": values["rainfall"],
-            }
-
-            with st.spinner("🤖 Gemini is generating agricultural advice..."):
-
-                advice = get_agriculture_advice(
-                    soil_data=soil_data,
-                    predicted_crop=predicted_crop,
-                    explanation=explanation["plain_english"],
-                )
-
-            st.markdown(
-                f"""
-                <div class="ai-card">
-
-                    <div class="ai-title">
-                        🌾 AI Agricultural Advice
-                    </div>
-
-                    <p>
-                        {advice}
-                    </p>
-
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-            # ------------------------------------------------
-            # SAVE
-            # ------------------------------------------------
-
-            save_prediction(values, predicted_crop, result["top3"])
-
-        except Exception as e:
-
-            st.error(f"Prediction failed: {e}")
-
-
-# ============================================================
-# XAI EXPLANATION
-# ============================================================
-
-elif page == "XAI Explanation":
-
-    st.markdown(
-        """
-        <div class="main-title">
-            🧠 Explainable AI
-        </div>
-
-        <div class="subtitle">
-            Understand which features influenced the model prediction.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    if not model_available():
-
-        st.warning("Train the model first.")
-
-    else:
-
-        st.subheader("📊 Global Feature Importance")
-
-        try:
-
-            imp = global_feature_importance()
-
-            st.bar_chart(imp.set_index("feature"))
-
-        except Exception as e:
-
-            st.error(f"Could not load global SHAP importance: {e}")
-
-        st.subheader("🔍 Explain a New Prediction")
-
-        values = input_form()
-
-        if st.button("🧠 Explain Prediction", type="primary"):
-
-            try:
-
-                exp = explain_prediction(values)
-
-                st.success(f'Predicted crop: {exp["predicted_crop"]}')
-
-                contribution_df = exp["contributions"]
-
-                st.markdown(
-                    """
-                    <h3>
-                        📋 Feature Contributions
-                    </h3>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-                st.markdown(
-                    contribution_df.to_html(
-                        index=False, classes="xai-table", escape=True
-                    ),
-                    unsafe_allow_html=True,
-                )
-
-                st.markdown(
-                    f"""
-                    <div class="result-card">
-
-                        <h3>💡 Explanation</h3>
-
-                        <p>
-                            {exp["plain_english"]}
-                        </p>
-
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-            except Exception as e:
-
-                st.error(f"XAI failed: {e}")
+            except Exception as exc:
+                st.error(f"Crop recommendation failed: {exc}")
 
 
 # ============================================================
@@ -1375,97 +1069,101 @@ elif page == "XAI Explanation":
 
 elif page == "Model Performance":
 
-    st.markdown(
-        """
-        <div class="main-title">
-            📊 Model Performance
-        </div>
-
-        <div class="subtitle">
-            Compare trained models and inspect the confusion matrix.
-        </div>
-        """,
-        unsafe_allow_html=True,
+    page_header(
+        "📊 Model Performance",
+        "Inspect model metadata and evaluation results.",
     )
 
-    meta_path = ROOT / "models" / "model_metadata.json"
+    metadata_path = ROOT / "models" / "model_metadata.json"
 
-    if not meta_path.exists():
-
-        st.warning("No model metadata found. Run the training script first.")
+    if not metadata_path.exists():
+        st.warning("Model metadata was not found. " "Run the training script first.")
 
     else:
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
 
-        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            c1, c2, c3, c4 = st.columns(4)
 
-        # ------------------------------------------------
-        # MODEL INFORMATION
-        # ------------------------------------------------
-
-        c1, c2, c3, c4 = st.columns(4)
-
-        c1.metric("Selected Model", meta.get("selected_model", "N/A"))
-
-        c2.metric("Classes", meta.get("num_classes", "N/A"))
-
-        c3.metric("Training Samples", meta.get("training_samples", "N/A"))
-
-        c4.metric("Testing Samples", meta.get("testing_samples", "N/A"))
-
-        # ------------------------------------------------
-        # MODEL COMPARISON
-        # ------------------------------------------------
-
-        if meta.get("model_comparison"):
-
-            comparison_df = pd.DataFrame(meta["model_comparison"])
-
-            st.markdown("<h3>📊 Model Comparison</h3>", unsafe_allow_html=True)
-
-            st.markdown(
-                comparison_df.to_html(
-                    index=False, classes="premium-table", escape=True
-                ),
-                unsafe_allow_html=True,
+            c1.metric(
+                "Selected Model",
+                metadata.get("selected_model", "N/A"),
+            )
+            c2.metric(
+                "Classes",
+                metadata.get("num_classes", "N/A"),
+            )
+            c3.metric(
+                "Training Samples",
+                metadata.get("training_samples", "N/A"),
+            )
+            c4.metric(
+                "Testing Samples",
+                metadata.get("testing_samples", "N/A"),
             )
 
-        # ------------------------------------------------
-        # CONFUSION MATRIX
-        # ------------------------------------------------
+            comparison = metadata.get("model_comparison")
 
-        if meta.get("confusion_matrix"):
+            if comparison:
+                st.subheader("📊 Model Comparison")
 
-            st.markdown("<h3>🔥 Confusion Matrix</h3>", unsafe_allow_html=True)
+                comparison_df = pd.DataFrame(comparison)
 
-            st.markdown('<div class="matrix-card">', unsafe_allow_html=True)
+                st.markdown(
+                    comparison_df.to_html(
+                        index=False,
+                        classes="premium-table",
+                        escape=True,
+                    ),
+                    unsafe_allow_html=True,
+                )
 
-            fig = px.imshow(
-                meta["confusion_matrix"],
-                text_auto=True,
-                aspect="auto",
-                color_continuous_scale=[
-                    "#f0fdf4",
-                    "#bbf7d0",
-                    "#6ee7b7",
-                    "#34d399",
-                    "#059669",
-                    "#064e3b",
-                ],
-            )
+            matrix = metadata.get("confusion_matrix")
 
-            fig.update_layout(
-                paper_bgcolor="#ffffff",
-                plot_bgcolor="#ffffff",
-                font={"color": "#111827", "family": "Segoe UI"},
-                margin={"l": 30, "r": 30, "t": 25, "b": 30},
-            )
+            if matrix:
+                st.subheader("🔥 Confusion Matrix")
 
-            st.plotly_chart(
-                fig, use_container_width=True, config={"displayModeBar": False}
-            )
+                fig = px.imshow(
+                    matrix,
+                    text_auto=True,
+                    aspect="auto",
+                    color_continuous_scale=[
+                        "#f0fdf4",
+                        "#bbf7d0",
+                        "#6ee7b7",
+                        "#34d399",
+                        "#059669",
+                        "#064e3b",
+                    ],
+                )
 
-            st.markdown("</div>", unsafe_allow_html=True)
+                fig.update_layout(
+                    paper_bgcolor="#ffffff",
+                    plot_bgcolor="#ffffff",
+                    font={
+                        "color": "#1d2c22",
+                        "family": "Segoe UI",
+                    },
+                    margin={"l": 30, "r": 30, "t": 25, "b": 30},
+                )
 
+                st.plotly_chart(
+                    fig,
+                    use_container_width=True,
+                    config={"displayModeBar": False},
+                )
+
+        except Exception as exc:
+            st.error(f"Could not load model metadata: {exc}")
+
+
+# ============================================================
+# PREDICTION HISTORY
+# ============================================================
+
+# ============================================================
+# PREDICTION HISTORY
+# ============================================================
 
 # ============================================================
 # PREDICTION HISTORY
@@ -1473,33 +1171,210 @@ elif page == "Model Performance":
 
 elif page == "Prediction History":
 
-    st.markdown(
-        """
-        <div class="main-title">
-            🗃️ Prediction History
-        </div>
-
-        <div class="subtitle">
-            View previously generated crop recommendations.
-        </div>
-        """,
-        unsafe_allow_html=True,
+    page_header(
+        "🗃️ Prediction History",
+        "View previous predictions with their top 3 crops and probabilities.",
     )
 
-    history = get_prediction_history()
+    try:
+        history = get_prediction_history()
 
-    if history.empty:
+        if history is None or history.empty:
+            st.info(
+                "No prediction history available. "
+                "Generate a crop recommendation first."
+            )
 
-        st.info("No predictions have been stored yet.")
+        else:
+            # Summary
+            st.subheader("📊 History Overview")
 
-    else:
+            total_predictions = len(history)
 
-        st.markdown("<h3>📋 Previous Predictions</h3>", unsafe_allow_html=True)
+            if "predicted_crop" in history.columns:
+                unique_crops = history["predicted_crop"].nunique()
+                latest_crop = str(history["predicted_crop"].iloc[0])
+            else:
+                unique_crops = 0
+                latest_crop = "Not available"
 
-        st.markdown(
-            history.to_html(index=False, classes="history-table", escape=True),
-            unsafe_allow_html=True,
-        )
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Total Predictions", total_predictions)
+            col2.metric("Different Crops", unique_crops)
+            col3.metric("Latest Recommended Crop", latest_crop)
+
+            st.markdown("---")
+
+            # CSV export
+            st.download_button(
+                "⬇️ Download Prediction History (CSV)",
+                data=history.to_csv(index=False).encode("utf-8"),
+                file_name="soil_crop_prediction_history.csv",
+                mime="text/csv",
+                key="history_csv_download",
+            )
+
+            # Build a display table.
+            # This supports either separate top-3 columns or a saved
+            # top-3 list/dictionary, depending on the database schema.
+            display_history = history.copy()
+
+            def format_probability(value):
+                try:
+                    probability = float(value)
+                    if probability > 1:
+                        probability /= 100.0
+                    return f"{probability:.2%}"
+                except (TypeError, ValueError):
+                    return str(value) if value is not None else "N/A"
+
+            def format_top3(row):
+                items = []
+
+                # Case 1: Top-3 crops were stored as a JSON string.
+                for column in ("top3", "top_3", "recommendations"):
+                    if column in row.index:
+                        raw = row[column]
+
+                        if isinstance(raw, str):
+                            try:
+                                raw = json.loads(raw)
+                            except (json.JSONDecodeError, TypeError):
+                                raw = None
+
+                        if isinstance(raw, list):
+                            for item in raw[:3]:
+                                if isinstance(item, dict):
+                                    crop = item.get("crop", "Unknown")
+                                    prob = item.get(
+                                        "probability",
+                                        item.get("prob", None),
+                                    )
+
+                                    if prob is not None:
+                                        items.append(
+                                            f"{crop} ({format_probability(prob)})"
+                                        )
+                                    else:
+                                        items.append(str(crop))
+
+                                else:
+                                    items.append(str(item))
+
+                            if items:
+                                return "\n".join(
+                                    f"{i + 1}. {item}" for i, item in enumerate(items)
+                                )
+
+                # Case 2: Top-3 crops were saved in separate columns.
+                for rank in range(1, 4):
+                    crop_keys = (
+                        f"top{rank}_crop",
+                        f"crop_{rank}",
+                        f"recommended_crop_{rank}",
+                    )
+                    prob_keys = (
+                        f"top{rank}_probability",
+                        f"probability_{rank}",
+                        f"crop_{rank}_probability",
+                    )
+
+                    crop = next(
+                        (
+                            row[key]
+                            for key in crop_keys
+                            if key in row.index and pd.notna(row[key])
+                        ),
+                        None,
+                    )
+
+                    prob = next(
+                        (
+                            row[key]
+                            for key in prob_keys
+                            if key in row.index and pd.notna(row[key])
+                        ),
+                        None,
+                    )
+
+                    if crop is not None:
+                        if prob is not None:
+                            items.append(
+                                f"{rank}. {crop} " f"({format_probability(prob)})"
+                            )
+                        else:
+                            items.append(f"{rank}. {crop}")
+
+                return "\n".join(items) if items else "Not stored"
+
+            # Combine crop names and probabilities in readable columns.
+            display_history["Top 3 Recommended Crops"] = history.apply(
+                format_top3,
+                axis=1,
+            )
+
+            # Keep the original prediction columns while avoiding
+            # duplicate display of the raw Top-3 storage field.
+            raw_top3_columns = [
+                column
+                for column in (
+                    "top3",
+                    "top_3",
+                    "recommendations",
+                )
+                if column in display_history.columns
+            ]
+
+            display_history = display_history.drop(
+                columns=raw_top3_columns,
+                errors="ignore",
+            )
+
+            # Search
+            st.subheader("🔍 Search Prediction History")
+
+            search_text = st.text_input(
+                "Search by crop or parameter",
+                key="prediction_history_search",
+            )
+
+            if search_text.strip():
+                mask = (
+                    display_history.astype(str)
+                    .apply(
+                        lambda column: column.str.contains(
+                            search_text.strip(),
+                            case=False,
+                            regex=False,
+                            na=False,
+                        )
+                    )
+                    .any(axis=1)
+                )
+
+                display_history = display_history[mask]
+
+            st.caption(f"{len(display_history)} records found.")
+
+            # Table
+            st.subheader("📋 Prediction Records")
+
+            st.dataframe(
+                display_history,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Top 3 Recommended Crops": st.column_config.TextColumn(
+                        "Top 3 Recommended Crops",
+                        help="Each crop is shown with its probability.",
+                        width="large",
+                    ),
+                },
+            )
+
+    except Exception as exc:
+        st.error(f"Could not load prediction history: {exc}")
+
 
 # ============================================================
 # ABOUT
@@ -1507,69 +1382,31 @@ elif page == "Prediction History":
 
 elif page == "About":
 
-    st.markdown(
-        """
-<div class="main-title">
-    ℹ️ About Soil Crop AI
-</div>
-
-<div class="subtitle">
-    Technology and architecture behind the intelligent agriculture platform.
-</div>
-""",
-        unsafe_allow_html=True,
+    page_header(
+        "ℹ️ About Soil Crop AI",
+        "AI-powered tools for agricultural decision support.",
     )
 
     st.markdown(
         """
-<div class="intro-card">
-
-    <h2>
-        ###🌱 AI-Based Soil Analysis and Intelligent Crop Recommendation
-    </h2>
-
-    <p>
-        AI-Based Soil Analysis and Intelligent Crop Recommendation
-        is an intelligent agriculture decision-support system
-        that combines Machine Learning, Explainable AI,
-        Soil Health Analysis and Generative AI.
-    </p>
-
-    <h3>🛠️ Technology Stack</h3>
-
-    <p>
-        <b>Python 3.12</b><br>
-        <b>Pandas / NumPy</b><br>
-        <b>Scikit-learn</b><br>
-        <b>XGBoost</b><br>
-        <b>SHAP</b><br>
-        <b>Google Gemini AI</b><br>
-        <b>Streamlit</b><br>
-        <b>Plotly / Matplotlib</b><br>
-        <b>Joblib</b><br>
-        <b>SQLite</b>
-    </p>
-
-    <h3>🤖 Gemini AI</h3>
-
-    <p>
-        Gemini AI acts as an agricultural advisor.
-        It receives soil N, P, K, pH, temperature,
-        humidity, rainfall, the predicted crop and
-        the XAI explanation.
-    </p>
-
-    <p>
-        It then generates understandable agricultural guidance.
-    </p>
-
-</div>
-""",
+        <div class="intro-card">
+            <h2>🌱 Soil Crop AI</h2>
+            <p>
+                An agricultural decision-support application combining
+                Machine Learning, soil-health analysis, Explainable AI
+                and Generative AI.
+            </p>
+            <h3>🛠️ Technology Stack</h3>
+            <p>
+                Python · Streamlit · Pandas · Scikit-learn ·
+                SHAP · Plotly · SQLite · Google Gemini AI
+            </p>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
     st.warning(
-        "Disclaimer: This is a decision-support system. "
-        "It is not a replacement for professional agricultural "
-        "advice or laboratory soil testing."
+        "This application is a decision-support tool. It does not "
+        "replace laboratory soil testing or local agricultural advice."
     )
