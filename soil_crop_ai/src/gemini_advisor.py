@@ -2,18 +2,18 @@ import os
 from google import genai
 from dotenv import load_dotenv
 
-# Load environment variables from .env
 load_dotenv()
 
-# Get Gemini API key
-GEMINI_API_KEY = os.getenv("GOOGLE_API_KEY")
+GEMINI_API_KEY = (
+    os.getenv("GOOGLE_API_KEY")
+    or os.getenv("GEMINI_API_KEY")
+)
 
 if not GEMINI_API_KEY:
     raise ValueError(
-        "GOOGLE_API_KEY is not configured. " "Please add it to your .env file."
+        "Google Gemini API key is not configured."
     )
 
-# Create Gemini client
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 
